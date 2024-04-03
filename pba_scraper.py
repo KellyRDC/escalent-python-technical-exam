@@ -1,7 +1,12 @@
 from lxml import etree
+import re
 import csv
 import requests
 import threading
+
+
+def clean_text(text_list: list):
+    return ' '.join([text.strip() for text in text_list])
 
 
 def save_records_to_csv(records: list, fields: list, filename: str):
@@ -27,7 +32,7 @@ class PBATeamScraper:
     TEAM_LIST_URL = "https://www.pba.ph/teams"
 
     FILENAME = "team-tester.csv"
-    MAX_THREADS = 10
+    MAX_THREADS = 2
 
     def __init__(self):
         self.results = []
@@ -111,37 +116,120 @@ class PBATeamScraper:
 
 
 
-
-
-
-
-def get_teams_data():
-
-    # Team Profile:
-    #   > Team name, Head coach, Manager, URL, Logo link
-
-    teams_url = "https://www.pba.ph/teams"
-
-    with open('teams.text', 'w') as f:
-        response = requests.get(teams_url)
-        f.write(response.text)
-
-
+def get_team_value(player_logo_url: str):
+    return {
+        "https://dashboard.pba.ph/assets/logo/Ginebra150.png": "Ginebra San Miguel",
+        "https://dashboard.pba.ph/assets/logo/Blackwater_new_logo_2021.png": "Blackwater",
+        "https://dashboard.pba.ph/assets/logo/converge-logo2.png": "Converge",
+        "https://dashboard.pba.ph/assets/logo/magnolia-2022-logo.png": "Magnolia",
+        "https://dashboard.pba.ph/assets/logo/web_mer.png": "Meralco",
+        "https://dashboard.pba.ph/assets/logo/web_nlx.png": "NLEX",
+        "https://dashboard.pba.ph/assets/logo/GLO_web.png": "North Port",
+        "https://dashboard.pba.ph/assets/logo/viber_image_2024-03-05_17-18-02-823.png": "Phoenix",
+        "https://dashboard.pba.ph/assets/logo/web_ros.png": "Rain or Shine",
+        "https://dashboard.pba.ph/assets/logo/SMB2020_web.png": "San Miguel",
+        "https://dashboard.pba.ph/assets/logo/terrafirma.png": "TerraFirma",
+        "https://dashboard.pba.ph/assets/logo/tropang_giga_pba.png": "Talk N Text",
+    }.get(player_logo_url)
 
 
 def get_players_data():
-
     # Player Profile:
     #   > Team name, Player name, Number, Position, URL, Mugshot
 
-    players_url = "https://www.pba.ph/players"
+    # Csv fields.
+    TEAM_NAME = 'Team name'
+    PLAYER_NAME = 'Player name'
+    NUMBER = 'Number'
+    POSITION = 'Position'
+    URL = 'Url'
+    MUGSHOT = 'Mugshot'
+    CSV_FIELDS = [
+        TEAM_NAME,
+        PLAYER_NAME,
+        NUMBER,
+        POSITION,
+        URL,
+        MUGSHOT,
+    ]
+    FILENAME = 'players.csv'
 
-    with open('players.text', 'w') as f:
-        response = requests.get(players_url)
-        f.write(response.text)
+    results = []
+
+    players_url = "https://www.pba.ph/players"
+    response = requests.get(players_url)
+    tree = etree.HTML(response.text)
+
+    # Get indivial tree per player
+    base_xpath = "//div[@class='playersBox']"
+    players_etrees = tree.xpath(base_xpath)
+
+    for p_tree in players_etrees:
+        # Team name
+        team_name_xpath = "./div[3]//img/@src"
+        team_name_value = p_tree.xpath(team_name_xpath)
+        team_name_value = team_name_value and team_name_value[0]
+        if team_name_value:
+            team_name_value = get_team_value(team_name_value)
+
+        # Player name
+        player_name_xpath = "./div[2]//a[contains(@href, 'players/')]//h5//text()"
+        player_name_value = p_tree.xpath(player_name_xpath)
+        player_name_value = player_name_value and clean_text(player_name_value)
+
+        # Number
+        player_number_xpath = "./div[3]//h6[starts-with(text(), '#')]/text()"
+        player_number_value = p_tree.xpath(player_number_xpath)
+        player_number_value = player_number_value and player_number_value[0]
+        if player_number_value:
+            re_value = re.findall(r"^#(\d+)", player_number_value)
+            if re_value:
+                player_number_value =  re_value[0]
+
+        # Position
+        position_xpath = "./div[3]//h6[starts-with(text(), '#')]/text()"
+        position_value = p_tree.xpath(position_xpath)
+        position_value = position_value and position_value[0]
+        if position_value:
+            # get the values from second segment of the text
+            position_value = position_value.split('|')[1].strip()
+
+        # url
+        url_xpath = "./div[2]//a[contains(@href, 'players/')]/@href"
+        url_value = p_tree.xpath(url_xpath)
+        url_value = url_value and url_value[0]
+        if url_value and not url_value.startswith('/'):
+            url_value = 'https://www.pba.ph/' + url_value
+
+        # mugshot
+        mugshot_xpath = "./div[1]//a/img/@src"
+        mugshot_value = p_tree.xpath(mugshot_xpath)
+        mugshot_value = mugshot_value and mugshot_value[0]
+
+        results.append(
+            {
+                TEAM_NAME: team_name_value,
+                PLAYER_NAME: player_name_value,
+                NUMBER: player_number_value,
+                POSITION: position_value,
+                URL: url_value,
+                MUGSHOT: mugshot_value,
+            }
+        )
+
+    save_records_to_csv(results, CSV_FIELDS, FILENAME)
 
 
 if __name__ == "__main__":
-    pass
     # get_players_data()
     # get_teams_data()
+
+    # # DEBUG team tester
+    # PBATeamScraper.FILENAME = 'xxx4.csv'
+    # PBATeamScraper.MAX_THREADS = 3
+    # # PBATeamScraper.TEAM_LOGO = 'logossss'
+    # team_scraper = PBATeamScraper()
+    # team_scraper.scrape()
+    # team_scraper.save_to_csv()
+
+    get_players_data()
