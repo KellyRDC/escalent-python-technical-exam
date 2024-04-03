@@ -1,4 +1,5 @@
 from lxml import etree
+from pathlib import Path
 import csv
 import re
 import requests
@@ -16,7 +17,45 @@ def save_records_to_csv(records: list, fields: list, filename: str):
         writer.writerows(records)
 
 
-class PBATeamScraper:
+def download_image(url, filename):
+    default_directory = './media/'        
+    path = Path(default_directory)
+    path.mkdir(parents=True, exist_ok=True)
+
+    filename = default_directory + filename
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            with open(filename, 'wb') as f:
+                f.write(response.content)
+            print("Image downloaded successfully as", filename)
+        else:
+            print("Failed to download image:", response.status_code)
+    except Exception as e:
+        print("Error:", e)
+
+
+class BaseClass:
+
+    @staticmethod
+    def get_team_name(logo_url: str):
+        return {
+            "https://dashboard.pba.ph/assets/logo/Ginebra150.png": "Ginebra San Miguel",
+            "https://dashboard.pba.ph/assets/logo/Blackwater_new_logo_2021.png": "Blackwater",
+            "https://dashboard.pba.ph/assets/logo/converge-logo2.png": "Converge",
+            "https://dashboard.pba.ph/assets/logo/magnolia-2022-logo.png": "Magnolia",
+            "https://dashboard.pba.ph/assets/logo/web_mer.png": "Meralco",
+            "https://dashboard.pba.ph/assets/logo/web_nlx.png": "NLEX",
+            "https://dashboard.pba.ph/assets/logo/GLO_web.png": "North Port",
+            "https://dashboard.pba.ph/assets/logo/viber_image_2024-03-05_17-18-02-823.png": "Phoenix",
+            "https://dashboard.pba.ph/assets/logo/web_ros.png": "Rain or Shine",
+            "https://dashboard.pba.ph/assets/logo/SMB2020_web.png": "San Miguel",
+            "https://dashboard.pba.ph/assets/logo/terrafirma.png": "TerraFirma",
+            "https://dashboard.pba.ph/assets/logo/tropang_giga_pba.png": "Talk N Text",
+        }.get(logo_url)
+
+
+class PBATeamScraper(BaseClass):
     TEAM_HEAD_COACH = "Head Coach"
     TEAM_LOGO = "Logo Link"
     TEAM_MANAGER = "Manger"
@@ -77,6 +116,16 @@ class PBATeamScraper:
 
         return url_list
 
+    def download_image(self, url):
+        team_name = self.get_team_name(url)
+        filename = None
+        if team_name:
+            filename =  team_name + '.png'
+        if not filename:
+            filename = url.split("/")[-1]
+
+        download_image(url, filename)
+
     def get_team_data(self, team_url: str):
         # Team Profile:
         #   > Team name, Head coach, Manager, URL, Logo link
@@ -109,6 +158,10 @@ class PBATeamScraper:
         logo_value = tree.xpath(logo_xpath)
         logo_value = logo_value and logo_value[0]
 
+        # Download and Process Logo 
+        if logo_value:
+            self.download_image(logo_value)
+
         return {
             self.TEAM_NAME: team_name_value,
             self.TEAM_HEAD_COACH: head_coach_value,
@@ -118,7 +171,7 @@ class PBATeamScraper:
         }
 
 
-class PBAPlayerScraper:
+class PBAPlayerScraper(BaseClass):
     TEAM_NAME = 'Team name'
     PLAYER_NAME = 'Player name'
     NUMBER = 'Number'
@@ -138,23 +191,6 @@ class PBAPlayerScraper:
 
     def __init__(self):
         self.results = []
-
-    @staticmethod
-    def get_team_name(player_logo_url: str):
-        return {
-            "https://dashboard.pba.ph/assets/logo/Ginebra150.png": "Ginebra San Miguel",
-            "https://dashboard.pba.ph/assets/logo/Blackwater_new_logo_2021.png": "Blackwater",
-            "https://dashboard.pba.ph/assets/logo/converge-logo2.png": "Converge",
-            "https://dashboard.pba.ph/assets/logo/magnolia-2022-logo.png": "Magnolia",
-            "https://dashboard.pba.ph/assets/logo/web_mer.png": "Meralco",
-            "https://dashboard.pba.ph/assets/logo/web_nlx.png": "NLEX",
-            "https://dashboard.pba.ph/assets/logo/GLO_web.png": "North Port",
-            "https://dashboard.pba.ph/assets/logo/viber_image_2024-03-05_17-18-02-823.png": "Phoenix",
-            "https://dashboard.pba.ph/assets/logo/web_ros.png": "Rain or Shine",
-            "https://dashboard.pba.ph/assets/logo/SMB2020_web.png": "San Miguel",
-            "https://dashboard.pba.ph/assets/logo/terrafirma.png": "TerraFirma",
-            "https://dashboard.pba.ph/assets/logo/tropang_giga_pba.png": "Talk N Text",
-        }.get(player_logo_url)
 
     def save_to_csv(self):
         save_records_to_csv(self.results, self.CSV_FIELDS, self.FILENAME)
