@@ -7,6 +7,7 @@
 # Modules
     - csv
     - lxml
+    - pathlib
     - re
     - requests
     - threading
