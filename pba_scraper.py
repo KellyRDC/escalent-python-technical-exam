@@ -36,9 +36,21 @@ def download_image(url, filename):
 
 
 class BaseClass:
+    """
+    Base class containing utility methods for scraping PBA (Philippine Basketball Association) data.
+    """
 
     @staticmethod
     def get_team_name(logo_url: str):
+        """
+        Get the team name from the given logo URL.
+        
+        Args:
+            logo_url (str): URL of the team logo.
+        
+        Returns:
+            str: Team name corresponding to the logo URL.
+        """
         return {
             "https://dashboard.pba.ph/assets/logo/Ginebra150.png": "Ginebra San Miguel",
             "https://dashboard.pba.ph/assets/logo/Blackwater_new_logo_2021.png": "Blackwater",
@@ -56,6 +68,21 @@ class BaseClass:
 
 
 class PBATeamScraper(BaseClass):
+    """
+    Class for scraping team information from the PBA (Philippine Basketball Association) website.
+    
+    Attributes:
+        TEAM_HEAD_COACH (str): Field name for the head coach.
+        TEAM_LOGO (str): Field name for the logo link.
+        TEAM_MANAGER (str): Field name for the manager.
+        TEAM_NAME (str): Field name for the team name.
+        TEAM_URL (str): Field name for the team URL.
+        CSV_FIELDS (list): List containing all field names for CSV.
+        TEAM_LIST_URL (str): URL from which team information is scraped.
+        FILENAME (str): Name of the CSV file where the scraped data will be saved.
+        MAX_THREADS (int): Maximum number of threads to be used for scraping.
+    """
+
     TEAM_HEAD_COACH = "Head Coach"
     TEAM_LOGO = "Logo Link"
     TEAM_MANAGER = "Manger"
@@ -70,16 +97,22 @@ class PBATeamScraper(BaseClass):
     ]
     TEAM_LIST_URL = "https://www.pba.ph/teams"
 
-    FILENAME = "team-tester.csv"
+    FILENAME = "teams.csv"
     MAX_THREADS = 2
 
     def __init__(self):
         self.results = []
 
     def save_to_csv(self):
+        """
+        Save the scraped player information to a CSV file.
+        """
         save_records_to_csv(self.results, self.CSV_FIELDS, self.FILENAME)
 
     def scrape(self):
+        """
+        Perform scraping of player information from the PBA website.
+        """
         url_list = self.get_list_of_team_urls()
         url_chunks = [
             url_list[i:i + self.MAX_THREADS]
@@ -89,9 +122,22 @@ class PBATeamScraper(BaseClass):
             self.run_threads(urls)
 
     def thread_task(self, url):
+        """
+        Function executed by each thread to scrape team data from a given URL.
+        
+        Args:
+            url (str): URL of the team to scrape.
+        """
         self.results.append(self.get_team_data(url))
 
     def run_threads(self, urls):
+        """
+        Run multiple threads to scrape team data from a list of URLs.
+        
+        Args:
+            urls (list): List of URLs to scrape.
+        """
+
         threads = []
         # Create threads
         for url in urls:
@@ -103,6 +149,12 @@ class PBATeamScraper(BaseClass):
             t.join()
 
     def get_list_of_team_urls(self):
+        """
+        Get the list of URLs for all teams from the PBA website.
+        
+        Returns:
+            list: List of team URLs.
+        """
         response = requests.get(self.TEAM_LIST_URL)
 
         if response.status_code != 200:
@@ -117,6 +169,13 @@ class PBATeamScraper(BaseClass):
         return url_list
 
     def download_image(self, url):
+        """
+        Download an image from a given URL.
+        
+        Args:
+            url (str): URL of the image to download.
+        """
+
         team_name = self.get_team_name(url)
         filename = None
         if team_name:
@@ -127,6 +186,15 @@ class PBATeamScraper(BaseClass):
         download_image(url, filename)
 
     def get_team_data(self, team_url: str):
+        """
+        Get team data from a given team URL.
+        
+        Args:
+            team_url (str): URL of the team to scrape.
+        
+        Returns:
+            dict: Dictionary containing team information.
+        """
         # Team Profile:
         #   > Team name, Head coach, Manager, URL, Logo link
 
@@ -172,6 +240,21 @@ class PBATeamScraper(BaseClass):
 
 
 class PBAPlayerScraper(BaseClass):
+    """
+    Class for scraping player information from the PBA (Philippine Basketball Association) website.
+    
+    Attributes:
+        TEAM_NAME (str): Field name for the team name.
+        PLAYER_NAME (str): Field name for the player name.
+        NUMBER (str): Field name for the player number.
+        POSITION (str): Field name for the player position.
+        URL (str): Field name for the player URL.
+        MUGSHOT (str): Field name for the player mugshot.
+        CSV_FIELDS (list): List containing all field names for CSV.
+        PLAYERS_URL (str): URL from which player information is scraped.
+        FILENAME (str): Name of the CSV file where the scraped data will be saved.
+    """
+
     TEAM_NAME = 'Team name'
     PLAYER_NAME = 'Player name'
     NUMBER = 'Number'
@@ -186,21 +269,26 @@ class PBAPlayerScraper(BaseClass):
         URL,
         MUGSHOT,
     ]
-
+    PLAYERS_URL = "https://www.pba.ph/players"
     FILENAME = 'players.csv'
 
     def __init__(self):
         self.results = []
 
     def save_to_csv(self):
+        """
+        Save the scraped player information to a CSV file.
+        """
         save_records_to_csv(self.results, self.CSV_FIELDS, self.FILENAME)
 
     def scrape(self):
+        """
+        Perform scraping of player information from the PBA website.
+        """
         # Player Profile:
         #   > Team name, Player name, Number, Position, URL, Mugshot
 
-        players_url = "https://www.pba.ph/players"
-        response = requests.get(players_url)
+        response = requests.get(self.PLAYERS_URL)
         tree = etree.HTML(response.text)
 
         # Get indivial tree per player
@@ -263,15 +351,28 @@ class PBAPlayerScraper(BaseClass):
 
 if __name__ == "__main__":
 
-    # DEBUG team tester
-    PBATeamScraper.FILENAME = 'team.csv'
-    PBATeamScraper.MAX_THREADS = 10
+    # Execute Team Scraper
     team_scraper = PBATeamScraper()
     team_scraper.scrape()
     team_scraper.save_to_csv()
 
-    # DEBUG player tester
-    PBAPlayerScraper.FILENAME = 'player.csv'
+    # Execute Player Scraper
     player_scraper = PBAPlayerScraper()
     player_scraper.scrape()
     player_scraper.save_to_csv()
+
+
+    ### Debugger
+
+    # # DEBUG team scraper
+    # PBATeamScraper.FILENAME = 'zz-teams.csv'
+    # PBATeamScraper.MAX_THREADS = 10
+    # team_scraper = PBATeamScraper()
+    # team_scraper.scrape()
+    # team_scraper.save_to_csv()
+
+    # # DEBUG player scraper
+    # PBAPlayerScraper.FILENAME = 'zz-player.csv'
+    # player_scraper = PBAPlayerScraper()
+    # player_scraper.scrape()
+    # player_scraper.save_to_csv()
